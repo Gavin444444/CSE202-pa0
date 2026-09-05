@@ -63,12 +63,41 @@ unsigned rotate_right(unsigned x, int n){
 	return (x >> n) | x << (32 - n);
 }
 
+//helper function to detect the sign bit of an integer that has been casted to unsigned
+int isNegative(unsigned x){
+	unsigned mask = 0x80000000;
+	if ((x & mask) != 0){ // negative number
+		return 1;
+	}
+	return 0; // positive number
+}
+
 
 // returns x+y if no overflow occurs
 // returns TMAX if a positive overflow occurs
 // returns TMIN if a negative overflow occurs
-int saturating_add(int x, int y);
+int saturating_add(int x, int y){
+	int xNegative = isNegative((unsigned)x);
+	int yNegative = isNegative((unsigned)y);
+	unsigned sum = (unsigned)x+ (unsigned)y;
+	int sumNegative = isNegative(sum);
+	
+	if (xNegative && yNegative && !sumNegative){ //negative overflow 
+		return TMIN;
+	} else if (!xNegative && !yNegative && sumNegative){ //positive overflow
+		return TMAX;
+	} else{
+		return (int)sum;
+	}	
+}
 
+int isNegative(unsigned x){
+	unsigned mask = 0x80000000;
+	if ((x & mask) != 0){ // negative number
+		return 1;
+	}
+	return 0; // positive number
+}
 
 // multiplies the binary representation of a float number f by 2
 unsigned float_twice(unsigned f);
