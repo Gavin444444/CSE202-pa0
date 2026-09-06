@@ -3,6 +3,9 @@
 #include <string.h>
 #include <limits.h>
 
+#define TMAX 2147483647
+#define TMIN -2147483648
+
 // Union to store 4 bytes as an array of bytes, an unsigned, signed, or float number
 union value{
     unsigned uval;
@@ -12,14 +15,41 @@ union value{
 };
 
 
-// reads 8 hex characters from string input and stores it in the union v
-// returns -1 if the hexadecimal number is invalid, 0 otherwise
-int read_hex(union value *v, char *input);
-
-
 // converts the ASCII hex character c to binary
 // returns the hex value of c if c is a valid hex digit, -1 otherwise
-char hexDigit(char c);
+char hexDigit(char c){
+    if (c >= '0' && c <= '9'){
+        return c - '0';
+    } else if (c >= 'A' && c <= 'F'){
+        return c - 'A' + 10;
+    } else if (c >= 'a' && c <= 'f'){
+        return c - 'a' + 10;
+    }
+    return -1;
+}
+
+
+// reads 8 hex characters from string input and stores it in the union v
+// returns -1 if the hexadecimal number is invalid, 0 otherwise
+int read_hex(union value *v, char *input){
+    int len = 0;
+    while (input[len] != '\0'){
+        len++;
+    }
+    if(len != 8){
+        return -1;
+    }
+    for (int i = 0; i < 4; i++){
+        int firstHalf = hexDigit(input[6 - (i * 2)]); //fill bytes in from the right
+        int secondHalf = hexDigit(input[7 - (i * 2)]);
+
+        if (firstHalf == -1 || secondHalf == -1){ //not valid
+            return -1;
+        }
+        v->bytes[i] = (firstHalf << 4) | secondHalf; //inputs the byte into the union
+    }
+    return 0;
+}
 
 
 // returns true if x has any even bit equal to 1, 0 otherwise
@@ -33,7 +63,7 @@ int any_even_one(unsigned x){
 
 
 // returns a mask indicating the position of the left most one in x
-int leftmost_one(unsigned x){
+unsigned leftmost_one(unsigned x){
 	unsigned y;
 	for(int i = 0; i < 32; i++){
 		y = x >> 1;
@@ -91,41 +121,132 @@ int saturating_add(int x, int y){
 	}	
 }
 
-int isNegative(unsigned x){
-	unsigned mask = 0x80000000;
-	if ((x & mask) != 0){ // negative number
-		return 1;
-	}
-	return 0; // positive number
-}
-
 // multiplies the binary representation of a float number f by 2
 unsigned float_twice(unsigned f){
-	unsigned mask = 0x7F800000;
-	if(f & mask == mask){ //infinity or NAN
+    unsigned signMask = 0x80000000;
+	unsigned expMask = 0x7F800000;
+	unsigned mantMask = 0x007FFFFF;
+	unsigned exponent = f & expMask;
+	if(exponent == expMask){ //infinity or NAN
 		return f;
+	} else if(exponent == 0){ //zero or denormalized number
+		return (f & signMask) | ((f & mantMask) << 1);
 	} else {
-		//need to extract the first 0 in exponent,
-		// convert it to a 1, then make all lesser bits 0
-		unsigned y = ((f & mask) | 0x80000000);
-		unsigned z;
-		for (int i = 0; i < 32; i++){
-			z = y >> 1;
-			y = y | z;
-		}
-		return 	
+		//increase the exponent
+		unsigned signAndMantissa = f & ~expMask;
+		unsigned newExponent = exponent + 0x00800000;
+		return signAndMantissa | newExponent;
 	}
 }
 
 
 // divides the binary representation of a float number f by 2
-unsigned float_half(unsigned f);
+unsigned float_half(unsigned f){
+    unsigned signMask = 0x80000000;
+	unsigned expMask = 0x7F800000;
+	unsigned mantMask = 0x007FFFFF;
+	unsigned exponent = f & expMask;
+	if(exponent == expMask){ //infinity or NAN
+		return f;
+	} else if(exponent == 0){ //zero or denormalized number
+		return (f & signMask) | ((f & mantMask) >> 1);
+    } else if (exponent == 0x00800000){ //exponent is 1
+        unsigned mantissa = 0x00800000 | (f & mantMask);
+        return (f & signMask) | (mantissa >> 1);
+	} else {
+		//decrease the exponent
+		unsigned signAndMantissa = f & ~expMask;
+		unsigned newExponent = exponent - 0x00800000;
+		return signAndMantissa | newExponent;
+	}
+}
 
 
 int main(int argc, char** argv){
     if(argc != 3 && argc != 4){
-        printf("Invalid number of arguments");
-        exit(0);
+        printf("Invalid number of arguments\n");
+        exit(1);
+    }
+
+    if(strcmp(argv[1], "rrotate") == 0 || strcmp(argv[1], "lrotate") == 0){
+        if(argc != 4){
+            printf("Invalid number of arguments\n");
+            exit(1);
+        }
+        int n = atoi(argv[3]);
+
+        if(n < 0 || n > 31){
+            printf("Invalid number of shift positions\n");
+            exit(1);
+        }
+        union value v;
+
+        if(read_hex(&v, argv[2]) == -1){
+            printf("Invalid hex value\n");
+            exit(1);
+        }
+
+        if(strcmp(argv[1], "rrotate") == 0){
+            printf("%08x\n", rotate_right(v.uval, n));
+        } else {
+            printf("%08x\n", rotate_left(v.uval, n));
+        }
+    } else if(strcmp(argv[1], "saturate") == 0){
+        if(argc != 4){
+            printf("Invalid number of arguments\n");
+            exit(1);
+        }
+        union value v;
+        union value secondValue;
+
+        if(read_hex(&v, argv[2]) == -1 || read_hex(&secondValue, argv[3]) == -1){
+            printf("Invalid hex value\n");
+            exit(1);
+        }
+        int result = saturating_add(v.sval, secondValue.sval);
+        printf("%08x %d\n", (unsigned)result, result);
+    } else if(strcmp(argv[1], "even") == 0 || strcmp(argv[1], "left") == 0 ||
+              strcmp(argv[1], "twice") == 0 || strcmp(argv[1], "half") == 0){
+        if(argc != 3){
+            printf("Invalid number of arguments\n");
+            exit(1);
+        }
+        union value v;
+
+        if(read_hex(&v, argv[2]) == -1){
+            printf("Invalid hex value\n");
+            exit(1);
+        }
+
+        if(strcmp(argv[1], "even") == 0){
+            if(any_even_one(v.uval)){
+                printf("True\n");
+            } else {
+                printf("False\n");
+            }
+        } else if(strcmp(argv[1], "left") == 0){
+            printf("%08x\n", leftmost_one(v.uval));
+        } else if(strcmp(argv[1], "twice") == 0){
+            v.uval = float_twice(v.uval);
+            if((v.uval & 0x7F800000) == 0x7F800000 &&
+               (v.uval & 0x007FFFFF) != 0 &&
+               (v.uval & 0x80000000) != 0){
+                printf("%08x -nan\n", v.uval);
+            } else {
+                printf("%08x %e\n", v.uval, v.fval);
+            }
+        } else {
+            v.uval = float_half(v.uval);
+            if((v.uval & 0x7F800000) == 0x7F800000 &&
+               (v.uval & 0x007FFFFF) != 0 &&
+               (v.uval & 0x80000000) != 0){
+                printf("%08x -nan\n", v.uval);
+            } else {
+                printf("%08x %e\n", v.uval, v.fval);
+            }
+        }
+    } else {
+        printf("Invalid operation\n");
     }
     return 0;
 }
