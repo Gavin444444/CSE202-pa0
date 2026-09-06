@@ -100,7 +100,22 @@ int isNegative(unsigned x){
 }
 
 // multiplies the binary representation of a float number f by 2
-unsigned float_twice(unsigned f);
+unsigned float_twice(unsigned f){
+	unsigned mask = 0x7F800000;
+	if(f & mask == mask){ //infinity or NAN
+		return f;
+	} else {
+		//need to extract the first 0 in exponent,
+		// convert it to a 1, then make all lesser bits 0
+		unsigned y = ((f & mask) | 0x80000000);
+		unsigned z;
+		for (int i = 0; i < 32; i++){
+			z = y >> 1;
+			y = y | z;
+		}
+		return 	
+	}
+}
 
 
 // divides the binary representation of a float number f by 2
