@@ -33,7 +33,7 @@ Write a program that includes the implementation of the following functions:
 
 `unsigned float_half(unsigned f)` returns the bit representation of f divided by 2. If f is infinity or NaN, the function returns f
 
-    thought: need to right shift the exponent by 1.  i believe this divides by two
+    thought: need to right shift the exponent by 1.  i believe this divides by two.  Find the first zero, then convert it to a 1 and make all lesser significant bits 0. 
 
 An empty main function and prototypes of the functions described above are provided in the file `prog1.c`. The assignment consists in writing the definition of the functions and the main function. The main function should accept command-line arguments for the different operations as listed in the test cases. The input string of 8 hex characters should be stored in the provided union value as 8 hex bytes (note that the bytes should be stored in the array `bytes` using little endian). The same union value can then be accessed as an unsigned, signed, or float number using the fields `uval`, `sval`, or `fval` respectively.
 
